@@ -1,0 +1,88 @@
+@name missile_hover_v2
+@inputs 
+@outputs [Torque,Pitch,Yaw,Thrust]:number [Angle]:angle [Angle_q,Angle_qd,Test,HoloQ]:quaternion [Position]:vector Torq_v2:vector2  Grav:vector V_z A_z Drag Act En
+@persist [Thruster_Angle_P_Gain,Thruster_Angle_D_Gain]:number [Angle,Angle_d]:angle [Angle_q,Angle_qd,Angle_q_old]:quaternion [Position]:vector
+@persist [Thruster_Vector_2d]:vector2 [III]:number Theta Torq_v2:vector2 P_z D_z Ve2:vector2
+@trigger 
+
+runOnTick(1)
+if(first()){
+    holoCreate(0,vec(0,0,0))
+    holoScale(0,vec(0.1,0.1,10))
+    holoColor(0,vec(255,0,0))
+    holoCreate(1,vec(0,0,0))
+    holoScale(1,vec(0.1,0.1,10))
+    holoColor(1,vec(0,255,0))
+    holoCreate(2,vec(0,0,0))
+    holoScale(2,vec(0.1,0.1,10))
+    holoColor(2,vec(0,255,0))
+    holoCreate(3,vec(0,0,0))
+    holoScale(3,vec(0.2,0.2,5))
+    holoAng(3,ang(0,0,0))
+    holoColor(3,vec(0,0,255))
+}
+Position = entity():pos()
+D_Pos = 8*$Position
+Target_Position = vec(-3400,600,1800)
+Grav = propGravity()
+Thrust_max = 5
+Thrust_min = 1
+holoPos(3,Target_Position)
+Hovering_Thrust = 2.32
+P_z = Target_Position:z() - Position:z()
+D_z = $P_z
+V_z = D_z/tickInterval()
+A_z = $V_z/tickInterval()
+Drag = 1*100000*(600 - A_z)/(V_z^2)
+En = 290/(1500*50)*V_z^2
+if(-2*(Thrust_max - Hovering_Thrust)*P_z < En&&V_z > 0&&P_z < 0){
+     Thrust = Thrust_max
+}
+elseif(-2*(Thrust_min - Hovering_Thrust)*P_z < En&&V_z < 0&&P_z > 0){
+    Thrust = Thrust_min
+}
+else{
+ Thrust = clamp(P_z + 10*D_z + Hovering_Thrust,Thrust_min,Thrust_max)   
+}
+
+Angle_q = quat(entity())
+Angle_qd = Angle_q*inv(Angle_q_old)
+Angle_q_old = Angle_q
+Vs = Angle_q:up()
+
+Ve = Target_Position - Position
+Ve = Ve:normalized()
+Mul = Vs:length()*Ve:length()
+Dot = Vs:dot(Ve)
+Cross = Vs:cross(Ve)
+Test_vec = 1/sqrt(2)*Cross/sqrt(Dot + 1)
+Test = quat(1/sqrt(2)*sqrt(Dot + 1),Test_vec:x(),Test_vec:y(),Test_vec:z())
+Holo_Triger = 1
+if(Holo_Triger){
+Int_q = Test*Angle_q
+HoloQ = slerp(Angle_q,Int_q,III)
+holoPos(0,60*HoloQ:up()+ Position + D_Pos)
+holoAng(0,HoloQ:toAngle())
+holoPos(1,60*Angle_q:up() + Position+ D_Pos)
+holoAng(1,Angle_q:toAngle())
+holoPos(2,60*Int_q:up() + Position+ D_Pos)
+holoAng(2,Int_q:toAngle())
+III += 0.01
+if(III > 1){III = 0}
+}
+
+Torq_v2 = vec2(-Angle_q:right():dot(vec(Test)),-Angle_q:forward():dot(vec(Test)))
+Torq_v2_d = vec2(Angle_q:right():dot(vec(Angle_qd)),Angle_q:forward():dot(vec(Angle_qd)))
+Thruster_Vector_2d = (2*Torq_v2 + 30*Torq_v2_d) #+ 50*Torq_v2_d
+Thruster_Vectoring_Angle_cutoff_gain = 0.25#0.258819045 #sin(15)
+if(Thruster_Vector_2d:length() > Thruster_Vectoring_Angle_cutoff_gain){
+    Thruster_Vector_2d = Thruster_Vector_2d/Thruster_Vector_2d:length()*Thruster_Vectoring_Angle_cutoff_gain
+}
+Torque = -100000*Angle_q:up():dot(vec(Angle_qd))*abs(5000*Angle_q:up():dot(vec(Angle_qd)) + 1)
+Pitch = asin(Thruster_Vector_2d:x())
+Yaw = acos(Thruster_Vector_2d:y()/sqrt(clamp(1 - Thruster_Vector_2d:x()^2,0.01,1)))
+
+
+
+
+

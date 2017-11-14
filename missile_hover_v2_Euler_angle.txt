@@ -1,0 +1,41 @@
+@name missile_hover_v2_Euler_angle
+@inputs 
+@outputs [Torque,Pitch,Yaw,Thrust]:number [Angle,Culced_Angle]:angle [Position]:vector
+@persist [Thruster_Angle_P_Gain,Thruster_Angle_D_Gain,Thruster_Angle_I_Gain]:number [Angle,Angle_d]:angle [Position]:vector
+@persist [Vector_Thrusting_Vec]:vector2 P_z D_z
+@trigger 
+
+runOnTick(1)
+Angle = entity():angles()
+if(Angle:roll() > 90){
+    Culced_Angle = Culced_Angle:setRoll(180 - Angle:roll())
+}
+elseif(Angle:roll() < -90){
+    Culced_Angle = Culced_Angle:setRoll(-180 - Angle:roll())
+}
+else{
+    Culced_Angle = Culced_Angle:setRoll(Angle:roll())
+}
+Position = entity():pos()
+Angle_d = $Angle
+Thruster_Angle_P_Gain = 1.7
+Thruster_Angle_D_Gain = 10.5
+
+
+#Vector_Thrusting_Vec = vec2(Thruster_Angle_P_Gain*Angle:roll() + Thruster_Angle_D_Gain*Angle_d:roll(),Thruster_Angle_P_Gain*Angle:pitch() + Thruster_Angle_D_Gain*Angle_d:pitch())
+Vector_Thrusting_Vec = vec2(Thruster_Angle_P_Gain*Angle:roll() + Thruster_Angle_D_Gain*Angle_d:roll(),Thruster_Angle_P_Gain*Angle:pitch() + Thruster_Angle_D_Gain*Angle_d:pitch())
+
+Vector_Thrusting_Vec = vec2(sin(Vector_Thrusting_Vec:x()),sin(-Vector_Thrusting_Vec:y()))
+if(Vector_Thrusting_Vec:length() > 0.96984631){
+    Vector_Thrusting_Vec = Vector_Thrusting_Vec/Vector_Thrusting_Vec:length()*0.96984631
+}
+
+#
+Pitch = asin(Vector_Thrusting_Vec:y())
+Yaw = acos(Vector_Thrusting_Vec:x()/sqrt(clamp(1 - Vector_Thrusting_Vec:y()^2,0,1)))
+
+P_z = 1800 - Position:z()
+D_z = $P_z
+Torque = -50*Angle:yaw() - 600*Angle_d:yaw()
+Thrust = clamp(P_z + 20*D_z,1,3.6)
+
